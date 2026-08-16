@@ -3,7 +3,13 @@
 #include <vector>
 #include <iomanip>
 
-// --- Process Profile ---
+// --- System Operating Modes ---
+enum OperatingMode {
+    GAMING_BOOST,
+    BATTERY_SAVER
+};
+
+// --- Process Profile (PCB) ---
 struct Process {
     int pid;
     std::string name;
@@ -13,77 +19,91 @@ struct Process {
     bool is_foreground_game;
 };
 
-// --- Optimization Engine ---
-void optimize_system(std::vector<Process>& processes, int& total_freed_ram) {
-    std::cout << "\n[ANTI-LAG ENGAGED] Optimizing System Resources...\n";
-    std::cout << "===========================================================\n";
-
+// --- Day 5 Multi-Mode Optimization Engine ---
+void optimize_system(std::vector<Process>& processes, int& total_freed_ram, OperatingMode mode) {
     total_freed_ram = 0;
 
+    std::cout << "\n===========================================================\n";
+    if (mode == GAMING_BOOST) {
+        std::cout << "[ENGINE MODE: GAMING BOOST ACTIVE]\n";
+    } else {
+        std::cout << "[ENGINE MODE: BATTERY SAVER ACTIVE]\n";
+    }
+    std::cout << "===========================================================\n";
+
     for (auto& app : processes) {
-        if (app.is_foreground_game) {
-            app.priority_score = 5;
-            app.pinned_cpu_core = 0;
-            std::cout << "Boosted " << app.name << " -> Priority Level [5], Locked to Core [0]\n";
+        if (mode == GAMING_BOOST) {
+            if (app.is_foreground_game) {
+                app.priority_score = 5;
+                app.pinned_cpu_core = 0;
+                std::cout << "[BOOST] " << app.name << " -> Priority: [5] | Core: Locked [0]\n";
+            } else {
+                app.priority_score = 1;
+                app.pinned_cpu_core = 1;
+                
+                int saved_ram = app.memory_usage_mb * 0.7;
+                app.memory_usage_mb -= saved_ram;
+                total_freed_ram += saved_ram;
+                
+                std::cout << "[THROTTLE] " << app.name << " -> Priority: [1] | Core: [1] | Freed: " << saved_ram << " MB\n";
+            }
         } 
-        else {
+        else if (mode == BATTERY_SAVER) {
+            // Under Battery Saver, cap ALL process priorities and unpin cores to save power
             app.priority_score = 1;
-            app.pinned_cpu_core = 1;
+            app.pinned_cpu_core = -1;
             
-            int saved_ram = app.memory_usage_mb * 0.7;
+            int saved_ram = app.memory_usage_mb * 0.4;
             app.memory_usage_mb -= saved_ram;
             total_freed_ram += saved_ram;
-            
-            std::cout << "Throttled " << app.name << " -> Priority Level [1], Moved to Core [1] | Freed " << saved_ram << " MB RAM\n";
+
+            std::cout << "[SAVER] " << app.name << " -> Power Capped | Priority: [1] | Core: [Unpinned]\n";
         }
     }
     std::cout << "===========================================================\n";
 }
 
-// --- DAY 4: THERMAL MONITOR & HARDWARE SAFEGUARD ---
+// --- Thermal Monitor Safeguard ---
 void check_thermal_status(double current_temp_c, std::vector<Process>& processes) {
-    std::cout << "\n[THERMAL DAEMON] Scanning CPU Sensors...\n";
-    std::cout << "Current CPU Temperature: " << current_temp_c << "°C\n";
+    std::cout << "\n[THERMAL DAEMON] Scanning CPU Core Sensors...\n";
+    std::cout << "Current Package Temp: " << current_temp_c << " C\n";
 
     if (current_temp_c >= 85.0) {
-        std::cout << "⚠️  CRITICAL WARNING: CPU Temperature exceeded 85°C threshold!\n";
-        std::cout << "⚠️  ENGAGING EMERGENCY THERMAL SAFEGUARD...\n";
-        
-        // Relief mechanism: Drop background process priority further to cool down hardware
+        std::cout << "!! WARNING: High Temp (>85 C) Detected! Engaging Emergency Safeguard...\n";
         for (auto& app : processes) {
             if (!app.is_foreground_game) {
-                app.pinned_cpu_core = -1; // Unpin from Core 1 to distribute thermal load across all idle cores
+                app.pinned_cpu_core = -1; // Unpin to spread thermal load
             }
         }
-        std::cout << "-> Unpinned background processes to spread thermal load across idle cores.\n";
+        std::cout << "-> Background processes unpinned across idle cores to prevent thermal throttling.\n";
     } else {
-        std::cout << "✅ Thermal levels stable. No emergency intervention needed.\n";
+        std::cout << "[OK] Thermal levels nominal.\n";
     }
 }
 
-// --- Telemetry Dashboard ---
-void display_telemetry(int initial_bg_ram, int total_freed_ram, double cpu_temp) {
-    double percentage_saved = ((double)total_freed_ram / initial_bg_ram) * 100.0;
+// --- Production Telemetry Dashboard ---
+void display_telemetry(int initial_bg_ram, int total_freed_ram, double cpu_temp, OperatingMode mode) {
+    double percentage_saved = (initial_bg_ram > 0) ? ((double)total_freed_ram / initial_bg_ram) * 100.0 : 0.0;
 
     std::cout << "\n===========================================================\n";
-    std::cout << "         📊 DAY 4: SYSTEM TELEMETRY & HARDWARE REPORT       \n";
+    std::cout << "          DAY 5: ANTI-LAG ENGINE FINAL REPORT              \n";
     std::cout << "===========================================================\n";
-    std::cout << " Initial Background RAM Load : " << initial_bg_ram << " MB\n";
-    std::cout << " Total Memory Reclaimed     : " << total_freed_ram << " MB\n";
-    std::cout << " Background RAM Reduction   : " << std::fixed << std::setprecision(1) << percentage_saved << "%\n";
-    std::cout << " Core Pinning Status        : Active (Game: Core 0 | BG: Core 1)\n";
-    std::cout << " CPU Package Temp           : " << cpu_temp << "°C " << (cpu_temp >= 85.0 ? "[OVERHEAT WARNING]" : "[NOMINAL]") << "\n";
-    std::cout << " Target App Performance     : MAXIMUM BOOST PRESERVED\n";
+    std::cout << " Active Profile Mode       : " << (mode == GAMING_BOOST ? "GAMING BOOST" : "BATTERY SAVER") << "\n";
+    std::cout << " Initial Background RAM    : " << initial_bg_ram << " MB\n";
+    std::cout << " Total Memory Reclaimed    : " << total_freed_ram << " MB\n";
+    std::cout << " RAM Footprint Reduction   : " << std::fixed << std::setprecision(1) << percentage_saved << "%\n";
+    std::cout << " Core Pinning Status       : " << (mode == GAMING_BOOST ? "Active (Core 0/1)" : "Disabled (Power Save)") << "\n";
+    std::cout << " CPU Temperature           : " << cpu_temp << " C " << (cpu_temp >= 85.0 ? "[OVERHEAT SAFEGUARD ACTIVE]" : "[NOMINAL]") << "\n";
     std::cout << "===========================================================\n\n";
 }
 
 int main() {
-    std::vector<Process> running_apps;
-
-    running_apps.push_back({101, "Chrome (50 Tabs Open)", 1200, 3, -1, false});
-    running_apps.push_back({204, "Spotify Music Stream", 350, 3, -1, false});
-    running_apps.push_back({312, "Antivirus Background Scan", 800, 4, -1, false});
-    running_apps.push_back({777, "Cyberpunk 2077 (Game)", 2500, 3, -1, true});
+    std::vector<Process> running_apps = {
+        {101, "Chrome (50 Tabs Open)", 1200, 3, -1, false},
+        {204, "Spotify Music Stream", 350, 3, -1, false},
+        {312, "Antivirus Background Scan", 800, 4, -1, false},
+        {777, "Cyberpunk 2077 (Game)", 2500, 3, -1, true}
+    };
 
     int initial_bg_ram = 0;
     for (const auto& app : running_apps) {
@@ -92,16 +112,16 @@ int main() {
         }
     }
 
-    // Run Engine
-    int total_freed_ram = 0;
-    optimize_system(running_apps, total_freed_ram);
+    // Select Engine Mode
+    OperatingMode current_mode = GAMING_BOOST; // Change to BATTERY_SAVER to test battery mode!
 
-    // Simulate high thermal load (88.5°C) to test emergency daemon
-    double simulated_cpu_temp = 88.5; 
+    int total_freed_ram = 0;
+    optimize_system(running_apps, total_freed_ram, current_mode);
+
+    double simulated_cpu_temp = 88.5;
     check_thermal_status(simulated_cpu_temp, running_apps);
 
-    // Display Updated Telemetry
-    display_telemetry(initial_bg_ram, total_freed_ram, simulated_cpu_temp);
+    display_telemetry(initial_bg_ram, total_freed_ram, simulated_cpu_temp, current_mode);
 
     return 0;
 }
